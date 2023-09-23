@@ -1,14 +1,19 @@
 # ruuvitag
-A ruuvitag is a weatherproof, battery powered sensor which reports temperature, humidity, pressure and motion via Bluetooth Low Energy (BLE) beacons. Deploying this repo turns a raspberry pi (3, 4 or 400) or a [balenaFin](https://www.balena.io/fin/) into a data collector for the ruuvitag, and displays the data over time in the [dashboard](https://github.com/balenablocks/dashboard) balenaBlock.
+A ruuvitag is a weatherproof, battery powered sensor which reports temperature, humidity, pressure and motion via Bluetooth Low Energy (BLE) beacons. This repo shows how to define Ruuvitags to listen and write their values to AWS Timestream.
 
 ## Deploy
-[![](https://balena.io/deploy.svg)](https://dashboard.balena-cloud.com/deploy?repoUrl=https://github.com/balenalabs-incubator/ruuvitag)
+[![](https://balena.io/deploy.svg)](https://dashboard.balena-cloud.com/deploy?repoUrl=https://github.com/ahtonen/ruuvitag)
 
-Just click the button, create or sign-in to your balenaCloud account, add your device and start charting your ruuvitag data!
+Just click the button, create or sign-in to your balenaCloud account, add your device and start sending Ruuvitag data!
 
-We live-hacked this app on an episode of balena IOT Happy Hour - check it out here:
+## Balena device configuration
 
-[![IOT Happy Hour Episode 38: balenaBlocks](https://img.youtube.com/vi/Mllay6Z2-qQ/0.jpg)](https://youtu.be/Mllay6Z2-qQ?t=1852)
+Each device must have these environment variables set. First defines RuuviTag MACs to listen and second their aliases.
+```
+RUUVITAG_MACS_TO_LISTEN=['ED:BD:47:DA:64:D4', 'C9:50:B1:7D:A8:8F']
+RUUVITAG_MAC_ALIASES={'ED:BD:47:DA:64:D4': 'sauna', 'C9:50:B1:7D:A8:8F': 'outside'}
+```
+Setting first variable to `[]` means listening all MACs.
 
 ## Hardware required
 * Raspberry Pi or balenaFin (see [supported devices](#supported-devices) )
@@ -23,12 +28,4 @@ This project has been tested to work on the following devices:
 
 | Device Type  | Status |
 | ------------- | ------------- |
-| Raspberry Pi 4 2Gb | ✔ |
-| Raspberry Pi 4 4Gb | ✔ |
-| Raspberry Pi 4 8Gb | ✔ |
-| Raspberry Pi 4 1Gb | ✔ |
-| Raspberry Pi 400 | ✔ |
-| Raspberry Pi 3b+ | ✔ |
 | Raspberry Pi 3b+ (64-bit OS) | ✔ |
-| balena Fin | ✔ |
-| Nanopi Neo Air | ✔ |

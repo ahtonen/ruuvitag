@@ -1,15 +1,8 @@
-FROM balenalib/%%BALENA_MACHINE_NAME%%-debian-python:3-build as build  
+FROM balenalib/%%BALENA_MACHINE_NAME%%-debian-python:3-run
 
-RUN mkdir /install
-WORKDIR /install
-
+ENV PATH=/root/.local/bin:$PATH
 COPY requirements.txt /requirements.txt
-ENV PATH=/root/.local/bin:$PATH
 RUN pip3 install --user -r /requirements.txt
-
-FROM balenalib/%%BALENA_MACHINE_NAME%%-debian-python:3-run 
-COPY --from=build /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
 
 RUN install_packages bluez \
 bluez-hcidump \

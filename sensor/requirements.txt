@@ -1,2 +1,1 @@
 ruuvitag_sensor
-paho-mqtt
