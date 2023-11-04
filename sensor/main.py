@@ -1,59 +1,90 @@
-import time
-from ruuvitag_sensor.ruuvi import RuuviTagSensor
-import logging
 import ast
-import os, sys
-from utils import SimpleMeasurement
-from collections.abc import Sequence
-from multiprocessing import Process
-from multiprocessing.sharedctypes import Value, Array
+import logging
+import os
+import sys
+import time
+from multiprocessing import Process, Queue
 
-logging.basicConfig(
-    stream=sys.stdout,
-    format="[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
-    level=logging.INFO,
-)
+from ruuvitag_sensor.ruuvi import RuuviTagSensor
+
+log_format_str = "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
+# drop timestamp out in when in Balena environment
+if os.environ.get("BALENA"):
+    log_format_str = "%(levelname)s in %(module)s: %(message)s"
+
+logging.basicConfig(stream=sys.stdout, format=log_format_str, level=logging.INFO)
 # logging.getLogger("ruuvitag_sensor.ruuvi").setLevel(logging.DEBUG)
 # logging.getLogger("ruuvitag_sensor.adapters.nix_hci").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
-allowed_macs = ast.literal_eval(os.environ["RUUVITAG_MACS_TO_LISTEN"])
-ruuvitag_macs = ast.literal_eval(os.environ["RUUVITAG_MAC_ALIASES"])
+ruuvitag_mac_aliases = {}
+if os.environ.get("RUUVITAG_MAC_ALIASES"):
+    ruuvitag_mac_aliases = ast.literal_eval(os.environ["RUUVITAG_MAC_ALIASES"])
+else:
+    logger.warning(
+        "'RUUVITAG_MAC_ALIASES' environment variable missing. Defaulting to '{}'."
+    )
+
+location = "not set"
+if os.environ.get("LOCATION"):
+    location = ast.literal_eval(os.environ["LOCATION"])
+else:
+    logger.warning("'LOCATION' environment variable missing. Defaulting to 'not set'.")
+
+write_interval = 60
+if os.environ.get("AWS_WRITE_INTERVAL"):
+    write_interval = ast.literal_eval(os.environ["AWS_WRITE_INTERVAL"])
+else:
+    logger.warning(
+        "'AWS_WRITE_INTERVAL' environment variable missing. Defaulting to 60 seconds."
+    )
 
 
-def ruuvi_event_loop(data: SimpleMeasurement):
+def ruuvi_event_loop(q: Queue):
+    """
+    Put received measurements from allowed MACs to queue.
+    """
+
     def handle_data(found_data):
-        sensor_name = found_data[0]
-
         try:
-            sensor_name = ruuvitag_macs[found_data[0]]
-            logger.debug(f"{sensor_name}: {found_data[1]}")
-            data[1].temperature = found_data[1]["temperature"]
+            logger.debug(f"PUT {found_data}")
+            q.put(found_data, True, write_interval)
 
         except Exception as e:
-            logger.warn(
-                f"MAC {sensor_name} not found in RUUVITAG_MAC_ALIASES environment variable. -- {e}"
-            )
+            logger.warning(e)
 
-    RuuviTagSensor.get_data(handle_data, allowed_macs)
+    RuuviTagSensor.get_data(handle_data, ruuvitag_mac_aliases.keys())
 
 
 if __name__ == "__main__":
-    #data = Value(SimpleMeasurement, 0.0, lock=True)
-    data = Array(SimpleMeasurement, len(allowed_macs), lock=True)
-    write_interval = 15 # seconds
+    q = Queue()  # FIFO queue
+    p = Process(target=ruuvi_event_loop, args=(q,))  # MUST be with comma
 
-    p = Process(target=ruuvi_event_loop, args=(data,)) # MUST be with comma
+    if not ruuvitag_mac_aliases:
+        logger.info("Alias dictionary empty, all MACs are valid.")
+
+    p.start()
+
     try:
-        p.start()
-
         while True:
             now = time.time()
 
-            # write temperature
-            logger.info(f"Write loop, TEMP {data[0].temperature}")
+            if not q.empty():
+                received_measurements = []
+                while not q.empty():
+                    received_measurements.append(q.get())
+
+                latest_measurements = {}
+                for m in received_measurements:
+                    mac = m[0]
+                    latest_measurements[ruuvitag_mac_aliases[mac]] = m[1]
+
+                logger.info(f"FLUSH: {latest_measurements}")
+            else:
+                logger.warning("Queue was empty")
 
             # wait
             while (time.time() - now) < write_interval:

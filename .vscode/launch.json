@@ -12,8 +12,10 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "env": {
-                "RUUVITAG_MACS_TO_LISTEN": "['ED:BD:47:DA:64:D4', 'C9:50:B1:7D:A8:8F']",
-                "RUUVITAG_MAC_ALIASES": "{'ED:BD:47:DA:64:D4': 'Pekkala_sauna', 'C9:50:B1:7D:A8:8F': 'Pekkala_outside'}"
+                "RUUVITAG_MAC_ALIASES": "{'ED:BD:47:DA:64:D4': 'sauna', 'C5:C9:38:42:E1:DF': 'office'}",
+//                "RUUVITAG_MAC_ALIASES": "{'ED:BD:47:DA:64:D4': 'sauna', 'C9:50:B1:7D:A8:8F': 'outside'}",
+                "LOCATION": "'Pekkala'",
+                "AWS_WRITE_INTERVAL": "60"
             },
             "sudo": true
         }
