@@ -11,6 +11,8 @@ sudo
 WORKDIR /app
 
 COPY ./main.py .
+COPY ./aws_timestream.py .
+COPY ./utils.py .
 COPY ./start.sh .
 
 # Enable udevd so that plugged dynamic hardware devices show up in our container.
