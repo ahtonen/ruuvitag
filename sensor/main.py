@@ -5,42 +5,46 @@ import sys
 import time
 from multiprocessing import Process, Queue
 
+import boto3
+from botocore.config import Config
 from ruuvitag_sensor.ruuvi import RuuviTagSensor
+from aws_timestream import write_ruuvi_record
 
-log_format_str = "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
+from utils import MissingEnvironmentVariable, get_env_var
+
+LOG_FORMAT_STR = "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
 # drop timestamp out in when in Balena environment
 if os.environ.get("BALENA"):
-    log_format_str = "%(levelname)s in %(module)s: %(message)s"
+    LOG_FORMAT_STR = "%(levelname)s in %(module)s: %(message)s"
 
-logging.basicConfig(stream=sys.stdout, format=log_format_str, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout, format=LOG_FORMAT_STR, level=logging.INFO)
 # logging.getLogger("ruuvitag_sensor.ruuvi").setLevel(logging.DEBUG)
 # logging.getLogger("ruuvitag_sensor.adapters.nix_hci").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
-logger.setLevel(logging.INFO)
-
-ruuvitag_mac_aliases = {}
-if os.environ.get("RUUVITAG_MAC_ALIASES"):
-    ruuvitag_mac_aliases = ast.literal_eval(os.environ["RUUVITAG_MAC_ALIASES"])
+if os.environ.get("DEBUG"):
+    logger.setLevel(logging.DEBUG)
 else:
+    logger.setLevel(logging.INFO)
+
+
+region = get_env_var("AWS_REGION")
+write_interval = ast.literal_eval(get_env_var("AWS_WRITE_INTERVAL"))
+ENABLE_AWS_WRITE = True
+
+try:
+    ruuvitag_mac_aliases = ast.literal_eval(get_env_var("RUUVITAG_MAC_ALIASES"))
+    if len(ruuvitag_mac_aliases.keys()) == 0:
+        logger.error("Empty of malformed dictionary in RUUVITAG_MAC_ALIASES.")
+        exit(1)
+
+except MissingEnvironmentVariable as e:
     logger.warning(
-        "'RUUVITAG_MAC_ALIASES' environment variable missing. Defaulting to '{}'."
+        "%s, defaulting to allow all ruuvitag macs. AWS write disable, revert to debug mode.",
+        e,
     )
-
-location = "not set"
-if os.environ.get("LOCATION"):
-    location = ast.literal_eval(os.environ["LOCATION"])
-else:
-    logger.warning("'LOCATION' environment variable missing. Defaulting to 'not set'.")
-
-write_interval = 60
-if os.environ.get("AWS_WRITE_INTERVAL"):
-    write_interval = ast.literal_eval(os.environ["AWS_WRITE_INTERVAL"])
-else:
-    logger.warning(
-        "'AWS_WRITE_INTERVAL' environment variable missing. Defaulting to 60 seconds."
-    )
+    ENABLE_AWS_WRITE = False
+    logger.setLevel(logging.DEBUG)
 
 
 def ruuvi_event_loop(q: Queue):
@@ -50,21 +54,32 @@ def ruuvi_event_loop(q: Queue):
 
     def handle_data(found_data):
         try:
-            logger.debug(f"PUT {found_data}")
+            logger.debug("PUT %s", found_data)
             q.put(found_data, True, write_interval)
 
         except Exception as e:
             logger.warning(e)
 
-    RuuviTagSensor.get_data(handle_data, ruuvitag_mac_aliases.keys())
+    if ENABLE_AWS_WRITE:
+        RuuviTagSensor.get_data(handle_data, list(ruuvitag_mac_aliases.keys()))
+    else:
+        RuuviTagSensor.get_data(handle_data)
 
 
 if __name__ == "__main__":
     q = Queue()  # FIFO queue
     p = Process(target=ruuvi_event_loop, args=(q,))  # MUST be with comma
 
-    if not ruuvitag_mac_aliases:
-        logger.info("Alias dictionary empty, all MACs are valid.")
+    session = boto3.Session()
+    write_client = session.client(
+        "timestream-write",
+        config=Config(
+            region_name=region,
+            read_timeout=20,
+            max_pool_connections=5000,
+            retries={"max_attempts": 10},
+        ),
+    )
 
     p.start()
 
@@ -73,16 +88,32 @@ if __name__ == "__main__":
             now = time.time()
 
             if not q.empty():
+                # Empty process queue by reading everything
                 received_measurements = []
                 while not q.empty():
                     received_measurements.append(q.get())
 
+                # Get latest measurement for each sensor, report counts
                 latest_measurements = {}
+                counts = {}
                 for m in received_measurements:
                     mac = m[0]
-                    latest_measurements[ruuvitag_mac_aliases[mac]] = m[1]
+                    latest_measurements[mac] = m[1]
 
-                logger.info(f"FLUSH: {latest_measurements}")
+                    if not mac in counts:
+                        counts[mac] = 1
+                    else:
+                        counts[mac] += 1
+                logger.debug("COUNTS: %s", counts)
+                logger.debug("FLUSH: %s", latest_measurements)
+
+                # Write to AWS only if mac aliases are provided
+                if ENABLE_AWS_WRITE:
+                    for mac, measurement in latest_measurements.items():
+                        write_ruuvi_record(
+                            write_client, ruuvitag_mac_aliases[mac], measurement
+                        )
+
             else:
                 logger.warning("Queue was empty")
 
