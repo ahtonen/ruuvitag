@@ -1,7 +1,7 @@
 name: "ruuvitag"
 description: "Collect data from Ruuvitag BLE sensors and send it to AWS Timestream."
 type: "sw.application"
-version: "0.1.0"
+version: "0.1.1"
 assets:
   repository:
     type: "blob.asset"

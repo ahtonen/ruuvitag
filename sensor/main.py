@@ -47,6 +47,17 @@ except MissingEnvironmentVariable as e:
     logger.setLevel(logging.DEBUG)
 
 
+def validate_data(data: tuple):
+    """
+    Validate record. All keys must have 'not None' value.
+    """
+    for _ , value in data[1].items():
+        if value is None:
+            return False
+
+    return True
+
+
 def ruuvi_event_loop(q: Queue):
     """
     Put received measurements from allowed MACs to queue.
@@ -54,8 +65,9 @@ def ruuvi_event_loop(q: Queue):
 
     def handle_data(found_data):
         try:
-            logger.debug("PUT %s", found_data)
-            q.put(found_data, True, write_interval)
+            if validate_data(found_data):
+                logger.debug("PUT %s", found_data)
+                q.put(found_data, True, write_interval)
 
         except Exception as e:
             logger.warning(e)
