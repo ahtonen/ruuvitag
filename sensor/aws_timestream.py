@@ -23,6 +23,15 @@ def add_measure(measures: list, values: dict, mname: str, mtype: str):
     """
     Add measurement in AWS Timestream multi measurement format.
     """
+    if (mtype == "DOUBLE" or mtype == "BIGINT") and (values[mname] is None):
+        logger.warning(
+            "Trying to write 'None' to AWS Timestream: (%s, %s, %s). Skipping this measurement...",
+            mname,
+            mtype,
+            values[mname],
+        )
+        return
+
     measures.append(
         {
             "Name": mname,
@@ -95,5 +104,6 @@ def write_ruuvi_record(
 
         except Exception as err:
             logger.error("Error: %s", err)
+            logger.error("Records: %s", records)
     else:
         logger.warning("No measures to send")

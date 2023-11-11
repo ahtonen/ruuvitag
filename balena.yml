@@ -1,21 +1,18 @@
 name: "ruuvitag"
-description: "Collect data from a ruuvitag BLE sensor and chart it in a dashboard"
+description: "Collect data from Ruuvitag BLE sensors and send it to AWS Timestream."
 type: "sw.application"
+version: "0.1.0"
 assets:
   repository:
     type: "blob.asset"
     data:
-      url: "https://github.com/balenalabs-incubator/ruuvitag"
+      url: "https://github.com/ahtonen/ruuvitag"
   logo:
     type: "blob.asset"
     data:
-      url: "https://raw.githubusercontent.com/balenalabs-incubator/ruuvitag/main/logo.png"
+      url: "https://raw.githubusercontent.com/ahtonen/ruuvitag/main/logo.png"
 data:
   defaultDeviceType: "raspberrypi3"
   supportedDeviceTypes:
     - "raspberrypi3"
     - "raspberrypi3-64"
-    - "raspberrypi4-64"
-    - "raspberrypi400-64"
-    - "fincm3"
-    - "nanopi-neo-air"
