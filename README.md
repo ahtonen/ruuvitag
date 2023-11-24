@@ -1,7 +1,7 @@
 # ruuvitag
 A ruuvitag is a weatherproof, battery powered sensor which reports temperature, humidity, pressure and motion via Bluetooth Low Energy (BLE) beacons. This repo shows how to define Ruuvitags to listen and write their values to AWS Timestream. The system is scalable by utilizing Balena fleet. Setting up the AWS side is left for the reader.
 
-![architecture diagram](./architecture.png)
+<img src="./architecture.png" alt="architecture diagram" width="80%" class="center"/>
 
 ## Deploy
 [![](https://balena.io/deploy.svg)](https://dashboard.balena-cloud.com/deploy?repoUrl=https://github.com/ahtonen/ruuvitag)
