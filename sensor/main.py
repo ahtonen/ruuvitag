@@ -1,31 +1,57 @@
 import ast
 import logging
+import logging.handlers
 import os
 import sys
 import time
+from datetime import datetime
 from multiprocessing import Process, Queue
 
 import boto3
+import pytz
+from aws_timestream import write_ruuvi_record
 from botocore.config import Config
 from ruuvitag_sensor.ruuvi import RuuviTagSensor
-from aws_timestream import write_ruuvi_record
-
 from utils import MissingEnvironmentVariable, get_env_var
 
-LOG_FORMAT_STR = "[%(asctime)s] %(levelname)s in %(module)s: %(message)s"
-# drop timestamp out in when in Balena environment
-if os.environ.get("BALENA"):
-    LOG_FORMAT_STR = "%(levelname)s in %(module)s: %(message)s"
 
-logging.basicConfig(stream=sys.stdout, format=LOG_FORMAT_STR, level=logging.INFO)
-# logging.getLogger("ruuvitag_sensor.ruuvi").setLevel(logging.DEBUG)
-# logging.getLogger("ruuvitag_sensor.adapters.nix_hci").setLevel(logging.DEBUG)
+class ISO8601Formatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        return (
+            datetime.fromtimestamp(record.created).astimezone(pytz.utc)
+            # .astimezone(pytz.timezone("Europe/Helsinki"))
+            .isoformat(timespec="milliseconds")
+        )
 
-logger = logging.getLogger(__name__)
+
+# configure root logger
+logger = logging.getLogger()
 if os.environ.get("DEBUG"):
     logger.setLevel(logging.DEBUG)
 else:
     logger.setLevel(logging.INFO)
+
+# logging.getLogger("ruuvitag_sensor.ruuvi").setLevel(logging.DEBUG)
+# logging.getLogger("ruuvitag_sensor.adapters.nix_hci").setLevel(logging.DEBUG)
+
+iso_formatter = ISO8601Formatter("%(asctime)s %(levelname)s in %(module)s: %(message)s")
+
+console_handler = logging.StreamHandler(sys.stdout)
+# drop timestamps for Balena cloud provides switch between local and utc
+if os.environ.get("BALENA"):
+    console_handler.setFormatter(
+        ISO8601Formatter("%(levelname)s in %(module)s: %(message)s")
+    )
+else:
+    console_handler.setFormatter(iso_formatter)
+
+file_handler = logging.handlers.RotatingFileHandler(
+    "/mnt/log/sensor.log", maxBytes=(1048576 * 2), backupCount=5
+)
+file_handler.setFormatter(iso_formatter)
+
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 
 
 region = get_env_var("AWS_REGION")
@@ -51,7 +77,7 @@ def validate_data(data: tuple):
     """
     Validate record. All keys must have 'not None' value.
     """
-    for _ , value in data[1].items():
+    for _, value in data[1].items():
         if value is None:
             return False
 

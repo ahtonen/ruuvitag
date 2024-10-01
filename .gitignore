@@ -162,3 +162,5 @@ cython_debug/
 # VSCode stuff
 .vscode/
 ruuvitag.code-workspace
+*accessKeys.csv
+docker-compose.yml.local

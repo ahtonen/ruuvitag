@@ -1,2 +1,3 @@
 ruuvitag_sensor
 boto3
+pytz

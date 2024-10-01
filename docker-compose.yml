@@ -1,7 +1,11 @@
 version: '2'
+volumes:
+  log:
 services:
   sensor:
     build: ./sensor
     privileged: true
     restart: never
     network_mode: host
+    volumes:
+      - 'log:/mnt/log'

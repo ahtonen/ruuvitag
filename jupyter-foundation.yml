@@ -1,0 +1,13 @@
+name: balena-devenv
+services:
+  foundation:
+    user: root
+    image: quay.io/jupyter/docker-stacks-foundation:x86_64-python-3.11
+    container_name: balena-devenv
+    tty: true
+    environment:
+      - NB_UID=1000
+      - NB_GID=1000
+      - CHOWN_HOME=yes
+    volumes:
+      - ${HOME}/src:/home/jovyan/src
