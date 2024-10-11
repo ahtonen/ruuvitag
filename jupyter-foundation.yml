@@ -9,5 +9,8 @@ services:
       - NB_UID=1000
       - NB_GID=1000
       - CHOWN_HOME=yes
+      - GRANT_SUDO=yes
     volumes:
+      - ./hooks.sh:/usr/local/bin/before-notebook.d/hooks.sh
       - ${HOME}/src:/home/jovyan/src
+
