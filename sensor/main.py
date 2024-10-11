@@ -4,24 +4,16 @@ import logging.handlers
 import os
 import sys
 import time
-from datetime import datetime
+
 from multiprocessing import Process, Queue
 
 import boto3
 import pytz
+import requests
 from aws_timestream import write_ruuvi_record
 from botocore.config import Config
 from ruuvitag_sensor.ruuvi import RuuviTagSensor
-from utils import MissingEnvironmentVariable, get_env_var
-
-
-class ISO8601Formatter(logging.Formatter):
-    def formatTime(self, record, datefmt=None):
-        return (
-            datetime.fromtimestamp(record.created).astimezone(pytz.utc)
-            # .astimezone(pytz.timezone("Europe/Helsinki"))
-            .isoformat(timespec="milliseconds")
-        )
+from utils import ISO8601Formatter, MissingEnvironmentVariable, get_env_var
 
 
 # configure root logger
@@ -55,8 +47,9 @@ logger.addHandler(file_handler)
 
 
 region = get_env_var("AWS_REGION")
-write_interval = ast.literal_eval(get_env_var("AWS_WRITE_INTERVAL"))
 ENABLE_AWS_WRITE = True
+write_interval = ast.literal_eval(get_env_var("AWS_WRITE_INTERVAL"))
+max_empty_queue_count = ast.literal_eval(get_env_var("MAX_EMPTY_QUEUE_COUNT"))
 
 try:
     ruuvitag_mac_aliases = ast.literal_eval(get_env_var("RUUVITAG_MAC_ALIASES"))
@@ -82,6 +75,20 @@ def validate_data(data: tuple):
             return False
 
     return True
+
+
+def restart_container():
+    """
+    Ask supervisor to restart container. Essentially a self recovery attempt.
+    """
+    headers = {"Content-Type": "application/json"}
+    data = {"appId": get_env_var("BALENA_APP_ID")}
+    url = "{}/v1/restart?apikey={}".format(
+        get_env_var("BALENA_SUPERVISOR_ADDRESS"),
+        get_env_var("BALENA_SUPERVISOR_API_KEY"),
+    )
+    # should return status code, but since container will restart, it doesn't
+    return requests.post(url, json=data, headers=headers)
 
 
 def ruuvi_event_loop(q: Queue):
@@ -122,10 +129,14 @@ if __name__ == "__main__":
     p.start()
 
     try:
+        empty_queue_counter = 0
+
         while True:
             now = time.time()
 
             if not q.empty():
+                # Reset consecutive empty queue counter
+                empty_queue_counter = 0
                 # Empty process queue by reading everything
                 received_measurements = []
                 while not q.empty():
@@ -153,7 +164,14 @@ if __name__ == "__main__":
                         )
 
             else:
+                empty_queue_counter += 1
                 logger.warning("Queue was empty")
+
+            if empty_queue_counter >= max_empty_queue_count:
+                logger.warning(
+                    "Max empty queue count exceeded. Restarting container..."
+                )
+                response = restart_container()
 
             # wait
             while (time.time() - now) < write_interval:

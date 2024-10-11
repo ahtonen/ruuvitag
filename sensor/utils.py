@@ -1,5 +1,8 @@
 import logging
 import os
+from datetime import datetime
+
+import pytz
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -17,3 +20,12 @@ def get_env_var(var_name):
         return os.environ[var_name]
     except KeyError:
         raise MissingEnvironmentVariable(f"{var_name} does not exist")
+
+
+class ISO8601Formatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        return (
+            datetime.fromtimestamp(record.created).astimezone(pytz.utc)
+            # .astimezone(pytz.timezone("Europe/Helsinki"))
+            .isoformat(timespec="milliseconds")
+        )

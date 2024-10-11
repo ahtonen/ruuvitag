@@ -3,6 +3,9 @@ A ruuvitag is a weatherproof, battery powered sensor which reports temperature, 
 
 <img src="./architecture.png" alt="architecture diagram" width="80%" class="center"/>
 
+## Sensor application
+Since the recommended way of reading Ruuvi measuments is registering a handler, the application is split into two processes: one filling the queue and one emptying it. Python's `multiprocessing` library is used for this purpose.
+
 ## Deploy
 [![](https://balena.io/deploy.svg)](https://dashboard.balena-cloud.com/deploy?repoUrl=https://github.com/ahtonen/ruuvitag)
 
@@ -15,9 +18,12 @@ AWS_ACCESS_KEY_ID
 AWS_REGION
 AWS_SECRET_ACCESS_KEY
 AWS_WRITE_INTERVAL
+MAX_EMPTY_QUEUE_COUNT
 DATABASE
 TABLE
 ```
+From variables that are not self-evident `AWS_WRITE_INTERVAL` is seconds between writes to AWS Timestream, `60` by default. As the process writing to AWS Timestream is emptying the queue on given intervals, it sometimes happens that Linux BT stack gets an issue and no measurements are received by Ruuvi's library. To fix this *feature* in Linux's BT stack, it was decided to try to ask Balena OS supervisor to restart the `sensor` container, if the queue has been empty `MAX_EMPTY_QUEUE_COUNT` times. So with 60s interval and max count of 10, it would mean a forced restart, if no measurements has been received during last 10 minutes.
+
 In addition you need to define following environment variables for each device:
 ```
 COUNTRY

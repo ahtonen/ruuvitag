@@ -9,3 +9,5 @@ services:
     network_mode: host
     volumes:
       - 'log:/mnt/log'
+    labels:
+      io.balena.features.supervisor-api: '1'
